@@ -1,0 +1,23 @@
+{
+  "name": "twitter_redis",
+  "version": "0.0.1",
+  "main": "src/index.js",
+  "author": "Igor ESCHALIER",
+  "license": "none",
+  "dependencies": {
+    "cors": "^2.8.4",
+    "express": "^4.16.3",
+    "express-graphql": "^0.6.12",
+    "graphql": "^14.0.0",
+    "ioredis": "^4.0.0",
+    "jsonwebtoken": "^8.3.0",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.4"
+  },
+  "scripts": {
+    "start": "node src",
+    "local": "nodemon src"
+  }
+}
