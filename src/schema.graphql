@@ -1,0 +1,36 @@
+type User {
+  id: ID!
+  name: String!
+  followers: [User]!
+  following: [User]!
+  posts: [Post]!
+}
+
+type Post {
+  id: ID!
+  title: String!
+  description: String!
+  user: User!
+  likes: [User]!
+}
+
+type LoginResp {
+  token: String!
+  user: User!
+}
+
+type Query {
+  users(depth: Int): [User]!
+  posts(depth: Int): [Post]!
+  hello(name: String): String!
+}
+
+type Mutation {
+  login(name: String!, password: String!): LoginResp!
+  register(name: String!, password: String!): User!
+  newPost(title: String!, description: String!, depth: Int): Post!
+  likePost(postId: ID!): Post!
+  unLikePost(postId: ID!): Post!
+  follow(userId: ID!): User!
+  unFollow(userId: ID!): User!
+}
