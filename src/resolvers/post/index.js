@@ -49,7 +49,7 @@ const mutation = {
     )
     const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
 
-    return query.post({ id: postId }, context, innerPostInfo)
+    return context.resolvers.post({ id: postId }, context, innerPostInfo)
   },
 
   unLikePost: async ({ postId }, context, info) => {
@@ -63,7 +63,7 @@ const mutation = {
     )
     const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
 
-    return query.post({ id: postId }, context, innerPostInfo)
+    return context.resolvers.post({ id: postId }, context, innerPostInfo)
   },
 }
 
@@ -83,28 +83,28 @@ const query = {
 
     const post = await store.redis.hgetall(`post:${id}`)
 
-    const user =
-      queryUser &&
-      (await context.resolvers.user(
-        { id: post.user, depth: depth - 1 },
-        context,
-        constructInnerUserInfo(queryUser.selectionSet),
-      ))
+    const resolveUser = () => {
+      const params = { id: post.user, depth: depth - 1 }
+      const infos = constructInnerUserInfo(queryUser.selectionSet)
+
+      return context.resolvers.user(params, context, infos)
+    }
+    const user = queryUser && (await resolveUser())
 
     const likeUsersId = await store.redis.smembers(`post:${id}:liked`)
-    const likes =
-      queryLikes &&
-      (await Promise.all(
-        likeUsersId.map(id => {
-          const likeUserInfo = constructInnerUserInfo(queryLikes.selectionSet)
+    const resolveLikes = () => {
+      const promises = likeUsersId.map((userId) => {
+        const likeUserInfo = constructInnerUserInfo(queryLikes.selectionSet)
 
-          return context.resolvers.user(
-            { id, depth: depth - 1 },
-            context,
-            likeUserInfo,
-          )
-        }),
-      ))
+        return context.resolvers.user(
+          { id: userId, depth: depth - 1 },
+          context,
+          likeUserInfo,
+        )
+      })
+      return Promise.all(promises)
+    }
+    const likes = queryLikes && (await resolveLikes())
 
     return {
       ...post,
@@ -121,7 +121,7 @@ const query = {
     const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
 
     return Promise.all(
-      postsId.map(id => query.post({ id }, context, innerPostInfo)),
+      postsId.map(id => context.resolvers.post({ id }, context, innerPostInfo)),
     )
   },
 }

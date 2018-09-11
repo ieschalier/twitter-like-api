@@ -5,7 +5,6 @@ const fs = require('fs')
 const path = require('path')
 const cors = require('cors')
 
-const store = require('./store')
 const resolvers = require('./resolvers')
 
 const schema = buildSchema(
@@ -15,10 +14,10 @@ const schema = buildSchema(
 const app = express()
 
 const extensions = ({
-  document,
-  variables,
-  operationName,
-  result,
+  // document,
+  // variables,
+  // operationName,
+  // result,
   context,
 }) => ({
   runTime: Date.now() - context ? context.startTime : 0,

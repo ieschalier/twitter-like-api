@@ -59,7 +59,7 @@ const mutation = {
   follow: async ({ userId }, context, info) => {
     const jwtUser = loggedUser(context)
 
-    if (userId === jwtUser.id) throw new Error("Can't auto follow")
+    if (userId === jwtUser.id) throw new Error('Can\'t auto follow')
 
     await store.redis.sadd(`user:${userId}:followers`, jwtUser.id)
     await store.redis.sadd(`user:${jwtUser.id}:following`, userId)
@@ -69,7 +69,7 @@ const mutation = {
     )
     const innerUserInfo = constructInnerUserInfo(usersOperation.selectionSet)
 
-    return query.user({ id: userId }, context, innerUserInfo)
+    return context.resolvers.user({ id: userId }, context, innerUserInfo)
   },
 
   unFollow: async ({ userId }, context, info) => {
@@ -83,7 +83,7 @@ const mutation = {
     )
     const innerUserInfo = constructInnerUserInfo(usersOperation.selectionSet)
 
-    return query.user({ id: userId }, context, innerUserInfo)
+    return context.resolvers.user({ id: userId }, context, innerUserInfo)
   },
 }
 
@@ -114,17 +114,23 @@ const query = {
       const postInfo = constructInnerPostInfo(queryPosts.selectionSet)
 
       const posts = await Promise.all(
-        postsId.map(postId =>
-          resolvers.post({ id: postId, depth: depth - 1 }, context, postInfo),
-        ),
+        postsId.map((postId) => {
+          const params = { id: postId, depth: depth - 1 }
+
+          return resolvers.post(params, context, postInfo)
+        }),
       )
 
       return posts
     }
 
-    const getUser = selectionSet => id => {
+    const getUser = selectionSet => (userId) => {
       const followersInfo = constructInnerUserInfo(selectionSet)
-      return resolvers.user({ id, depth: depth - 1 }, context, followersInfo)
+      return resolvers.user(
+        { id: userId, depth: depth - 1 },
+        context,
+        followersInfo,
+      )
     }
 
     const getFollowers = async () => {
@@ -138,8 +144,6 @@ const query = {
 
       return Promise.all(followingId.map(getUser(queryFollowing.selectionSet)))
     }
-
-    const followingId = await store.redis.smembers(`user:${id}:following`)
 
     return {
       ...user,
@@ -157,15 +161,12 @@ const query = {
     )
     const innerUserInfo = constructInnerUserInfo(usersOperation.selectionSet)
 
-    return Promise.all(
-      usersId.map(id =>
-        context.resolvers.user(
-          { id, depth: depth - 1 },
-          context,
-          innerUserInfo,
-        ),
-      ),
-    )
+    const promises = usersId.map((id) => {
+      const params = { id, depth: depth - 1 }
+
+      return context.resolvers.user(params, context, innerUserInfo)
+    })
+    return Promise.all(promises)
   },
 }
 
