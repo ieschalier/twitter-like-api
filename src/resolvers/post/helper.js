@@ -1,6 +1,10 @@
+const DataLoader = require('dataloader')
 const redis = require('../helpers/redis')
 const findUser = require('../helpers/findUser')
 const { constructInnerUserNode } = require('../helpers/innerNode')
+
+const resolvePostLoader = ids => Promise.all(ids.map(id => redis.hgetall(id)))
+const postLoader = new DataLoader(resolvePostLoader)
 
 const findPost = async (id, node) => {
   // if (depth <= 0) return null
@@ -15,7 +19,7 @@ const findPost = async (id, node) => {
     s => s.name.value === 'likes',
   )
 
-  const post = await redis.hgetall(`post:${id}`)
+  const post = await postLoader.load(`post:${id}`)
 
   const resolveUser = () => findUser(post.user, constructInnerUserNode(queryUser.selectionSet))
   const user = queryUser && (await resolveUser())
