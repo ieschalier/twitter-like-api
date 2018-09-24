@@ -34,3 +34,12 @@ type Mutation {
   follow(userId: ID!): User!
   unFollow(userId: ID!): User!
 }
+
+type LivePostsResult {
+  type: String!
+  post: Post!
+}
+
+type Subscription {
+  livePosts: LivePostsResult
+}

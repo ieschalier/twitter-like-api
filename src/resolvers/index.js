@@ -10,4 +10,7 @@ module.exports = {
     ...post.Mutation,
     ...user.Mutation,
   },
+  Subscription: {
+    ...post.Subscription,
+  },
 }
