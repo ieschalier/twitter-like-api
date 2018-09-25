@@ -2,12 +2,19 @@ const uuid = require('uuid/v4')
 const Redis = require('ioredis')
 
 const redis = require('../helpers/redis')
+const withCancel = require('../helpers/withCancel')
 const { loggedUser } = require('../user/helper')
 const { constructInnerPostNode } = require('../helpers/innerNode')
 const { findPost } = require('./helper')
 
 const pub = new Redis(process.env.REDIS_URL || '176.31.245.194:6379')
 const sub = new Redis(process.env.REDIS_URL || '176.31.245.194:6379')
+
+const listenners = {}
+
+sub.on('message', async (channel, postId) => {
+  Object.keys(listenners).forEach(key => listenners[key](channel, postId))
+})
 
 module.exports = {
   Query: {
@@ -103,7 +110,7 @@ module.exports = {
       subscribe: (parent, args, { pubSub }, node) => {
         const chan = uuid()
 
-        sub.on('message', async (channel, postId) => {
+        listenners[chan] = async (channel, postId) => {
           const types = {
             newPost: 'ADD',
             updatePost: 'UPDATE',
@@ -132,9 +139,11 @@ module.exports = {
               },
             })
           }
-        })
+        }
 
-        return pubSub.asyncIterator(chan)
+        return withCancel(pubSub.asyncIterator(chan), () => {
+          delete listenners[chan]
+        })
       },
     },
   },
