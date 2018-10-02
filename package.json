@@ -1,20 +1,22 @@
 {
   "name": "twitter_redis",
-  "version": "0.0.1",
-  "main": "src/index.js",
-  "author": "Igor ESCHALIER",
-  "license": "none",
+  "version": "1.0.0",
+  "main": "src",
+  "repository": "git@github.com:ieschalier/twitter-like-api.git",
+  "author": "Igor ESCHALIER <igor.eschalier@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^5.5.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "nodemon": "^1.18.4"
+  },
   "dependencies": {
-    "cors": "^2.8.4",
-    "express": "^4.16.3",
-    "express-graphql": "^0.6.12",
-    "graphql": "^14.0.0",
+    "dataloader": "^1.4.0",
+    "graphql-yoga": "^1.16.2",
     "ioredis": "^4.0.0",
     "jsonwebtoken": "^8.3.0",
     "uuid": "^3.3.2"
-  },
-  "devDependencies": {
-    "nodemon": "^1.18.4"
   },
   "scripts": {
     "start": "node src",

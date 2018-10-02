@@ -1,7 +1,16 @@
-const user = require('./user')
 const post = require('./post')
+const user = require('./user')
 
 module.exports = {
-  ...user,
-  ...post,
+  Query: {
+    ...post.Query,
+    ...user.Query,
+  },
+  Mutation: {
+    ...post.Mutation,
+    ...user.Mutation,
+  },
+  Subscription: {
+    ...post.Subscription,
+  },
 }

@@ -22,6 +22,7 @@ type LoginResp {
 type Query {
   users(depth: Int): [User]!
   posts(depth: Int): [Post]!
+  hello(name: String): String!
 }
 
 type Mutation {
@@ -32,4 +33,13 @@ type Mutation {
   unLikePost(postId: ID!): Post!
   follow(userId: ID!): User!
   unFollow(userId: ID!): User!
+}
+
+type LivePostsResult {
+  type: String!
+  post: Post!
+}
+
+type Subscription {
+  livePosts: LivePostsResult
 }

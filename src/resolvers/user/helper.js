@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken')
 // 😱
 const secret = '123456'
 
-const loggedUser = context => {
+const loggedUser = (context) => {
   const { authorization } = context.headers
   const jwtUser = jwt.verify(authorization, secret)
 
@@ -12,7 +12,7 @@ const loggedUser = context => {
   return jwtUser
 }
 
-const allowUser = user => {
+const allowUser = (user) => {
   const token = jwt.sign(user, secret, { expiresIn: '1 year' })
 
   return token

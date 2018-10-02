@@ -1,4 +1,4 @@
-const constructInnerPostInfo = selectionSet => ({
+const constructInnerPostNode = selectionSet => ({
   fieldName: 'post',
   returnType: 'Post',
   parentType: 'Query',
@@ -21,7 +21,7 @@ const constructInnerPostInfo = selectionSet => ({
   },
 })
 
-const constructInnerUserInfo = selectionSet => ({
+const constructInnerUserNode = selectionSet => ({
   fieldName: 'user',
   returnType: 'User',
   parentType: 'Query',
@@ -45,6 +45,6 @@ const constructInnerUserInfo = selectionSet => ({
 })
 
 module.exports = {
-  constructInnerPostInfo,
-  constructInnerUserInfo,
+  constructInnerPostNode,
+  constructInnerUserNode,
 }

@@ -1,132 +1,150 @@
 const uuid = require('uuid/v4')
+const Redis = require('ioredis')
 
-const store = require('../../store')
-const { constructInnerPostInfo, constructInnerUserInfo } = require('../helper')
+const redis = require('../helpers/redis')
+const withCancel = require('../helpers/withCancel')
 const { loggedUser } = require('../user/helper')
+const { constructInnerPostNode } = require('../helpers/innerNode')
+const { findPost } = require('./helper')
 
-const mutation = {
-  newPost: async ({ title, description, depth = 10 }, context, info) => {
-    const jwtUser = loggedUser(context)
+const pub = new Redis(process.env.REDIS_URL || '176.31.245.194:6379')
+const sub = new Redis(process.env.REDIS_URL || '176.31.245.194:6379')
 
-    const id = uuid()
+const listenners = {}
 
-    await store.redis.hmset(
-      `post:${id}`,
-      'id',
-      id,
-      'title',
-      title,
-      'description',
-      description,
-      'user',
-      jwtUser.id,
-    )
-
-    await store.redis.lpush('posts', id)
-
-    await store.redis.lpush(`user:${jwtUser.id}:posts`, id)
-
-    const postsOperation = info.operation.selectionSet.selections.find(
-      s => s.name.value === 'newPost',
-    )
-    const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
-
-    return context.resolvers.post(
-      { id, depth: depth - 1 },
-      context,
-      innerPostInfo,
-    )
-  },
-
-  likePost: async ({ postId }, context, info) => {
-    const jwtUser = loggedUser(context)
-
-    await store.redis.sadd(`post:${postId}:liked`, jwtUser.id)
-    await store.redis.sadd(`user:${jwtUser.id}:like`, postId)
-
-    const postsOperation = info.operation.selectionSet.selections.find(
-      s => s.name.value === 'likePost',
-    )
-    const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
-
-    return query.post({ id: postId }, context, innerPostInfo)
-  },
-
-  unLikePost: async ({ postId }, context, info) => {
-    const jwtUser = loggedUser(context)
-
-    await store.redis.srem(`post:${postId}:liked`, jwtUser.id)
-    await store.redis.srem(`user:${jwtUser.id}:like`, postId)
-
-    const postsOperation = info.operation.selectionSet.selections.find(
-      s => s.name.value === 'unLikePost',
-    )
-    const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
-
-    return query.post({ id: postId }, context, innerPostInfo)
-  },
-}
-
-const query = {
-  post: async ({ id, depth = 10 }, context, info) => {
-    if (depth <= 0) return null
-
-    const postOperation = info.operation.selectionSet.selections.find(
-      s => s.name.value === 'post',
-    )
-    const queryUser = postOperation.selectionSet.selections.find(
-      s => s.name.value === 'user',
-    )
-    const queryLikes = postOperation.selectionSet.selections.find(
-      s => s.name.value === 'likes',
-    )
-
-    const post = await store.redis.hgetall(`post:${id}`)
-
-    const user =
-      queryUser &&
-      (await context.resolvers.user(
-        { id: post.user, depth: depth - 1 },
-        context,
-        constructInnerUserInfo(queryUser.selectionSet),
-      ))
-
-    const likeUsersId = await store.redis.smembers(`post:${id}:liked`)
-    const likes =
-      queryLikes &&
-      (await Promise.all(
-        likeUsersId.map(id => {
-          const likeUserInfo = constructInnerUserInfo(queryLikes.selectionSet)
-
-          return context.resolvers.user(
-            { id, depth: depth - 1 },
-            context,
-            likeUserInfo,
-          )
-        }),
-      ))
-
-    return {
-      ...post,
-      user,
-      likes,
-    }
-  },
-
-  posts: async (variables, context, info) => {
-    const postsId = await store.redis.lrange('posts', 0, -1)
-    const postsOperation = info.operation.selectionSet.selections.find(
-      s => s.name.value === 'posts',
-    )
-    const innerPostInfo = constructInnerPostInfo(postsOperation.selectionSet)
-
-    return Promise.all(
-      postsId.map(id => query.post({ id }, context, innerPostInfo)),
-    )
-  },
-}
+sub.on('message', async (channel, postId) => {
+  Object.keys(listenners).forEach(key => listenners[key](channel, postId))
+})
 
 module.exports = {
-  ...query,
-  ...mutation,
+  Query: {
+    posts: async (_, params, info, node) => {
+      const postsId = await redis.lrange('posts', 0, -1)
+
+      const postsOperation = node.operation.selectionSet.selections.find(
+        s => s.name.value === 'posts',
+      )
+      const PostNode = constructInnerPostNode(postsOperation.selectionSet)
+
+      return Promise.all(postsId.map(id => findPost(id, PostNode)))
+    },
+  },
+  Mutation: {
+    newPost: async (_, { title, description }, info, node) => {
+      const jwtUser = loggedUser(info)
+
+      const id = uuid()
+
+      await redis.hmset(
+        `post:${id}`,
+        'id',
+        id,
+        'title',
+        title,
+        'description',
+        description,
+        'user',
+        jwtUser.id,
+      )
+
+      await redis.lpush('posts', id)
+
+      await redis.lpush(`user:${jwtUser.id}:posts`, id)
+
+      const postsOperation = node.operation.selectionSet.selections.find(
+        s => s.name.value === 'newPost',
+      )
+      const postNode = constructInnerPostNode(postsOperation.selectionSet)
+
+      try {
+        sub.subscribe('newPost', () => pub.publish('newPost', id))
+      } catch (error) {
+        console.error(error)
+      }
+
+      return findPost(id, postNode)
+    },
+
+    likePost: async (_, { postId }, info, node) => {
+      const jwtUser = loggedUser(info)
+
+      await redis.sadd(`post:${postId}:liked`, jwtUser.id)
+      await redis.sadd(`user:${jwtUser.id}:like`, postId)
+
+      const postsOperation = node.operation.selectionSet.selections.find(
+        s => s.name.value === 'likePost',
+      )
+      const postNode = constructInnerPostNode(postsOperation.selectionSet)
+
+      try {
+        sub.subscribe('updatePost', () => pub.publish('updatePost', postId))
+      } catch (error) {
+        console.error(error)
+      }
+
+      return findPost(postId, postNode)
+    },
+
+    unLikePost: async (_, { postId }, info, node) => {
+      const jwtUser = loggedUser(info)
+
+      await redis.srem(`post:${postId}:liked`, jwtUser.id)
+      await redis.srem(`user:${jwtUser.id}:like`, postId)
+
+      const postsOperation = node.operation.selectionSet.selections.find(
+        s => s.name.value === 'unLikePost',
+      )
+      const postNode = constructInnerPostNode(postsOperation.selectionSet)
+
+      try {
+        sub.subscribe('updatePost', () => pub.publish('updatePost', postId))
+      } catch (error) {
+        console.error(error)
+      }
+
+      return findPost(postId, postNode)
+    },
+  },
+  Subscription: {
+    livePosts: {
+      subscribe: (parent, args, { pubSub }, node) => {
+        const chan = uuid()
+
+        listenners[chan] = async (channel, postId) => {
+          const types = {
+            newPost: 'ADD',
+            updatePost: 'UPDATE',
+          }
+
+          if (types[channel]) {
+            const livePostssOperation = node.operation.selectionSet.selections.find(
+              s => s.name.value === 'livePosts',
+            )
+            const postOperation = livePostssOperation.selectionSet.selections.find(
+              s => s.name.value === 'post',
+            )
+
+            const resolvePost = async () => {
+              const postNode = constructInnerPostNode(
+                postOperation.selectionSet,
+              )
+
+              return findPost(postId, postNode)
+            }
+
+            pubSub.publish(chan, {
+              livePosts: {
+                type: types[channel],
+                post: postOperation && (await resolvePost()),
+              },
+            })
+          }
+        }
+
+        return withCancel(pubSub.asyncIterator(chan), () => {
+          delete listenners[chan]
+        })
+      },
+    },
+  },
 }
